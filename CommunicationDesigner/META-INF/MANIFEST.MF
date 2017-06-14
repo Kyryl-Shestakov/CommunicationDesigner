@@ -1,0 +1,23 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: CommunicationDesigner Plug-in
+Bundle-SymbolicName: CommunicationDesigner; singleton:=true
+Bundle-Version: 1.0.0
+Bundle-Activator: communicationdesigner.Activator
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.ibm.xtools.modeler.ui;bundle-version="7.5.570",
+ de.ikv.medini.qvt.plugin;bundle-version="1.4.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Import-Package: com.ibm.xtools.modeler.ui,
+ com.ibm.xtools.uml.ui.diagram,
+ com.ibm.xtools.umlnotation,
+ org.eclipse.emf.common.util,
+ org.eclipse.emf.ecore,
+ org.eclipse.emf.ecore.resource,
+ org.eclipse.emf.ecore.resource.impl,
+ org.eclipse.emf.ecore.xmi.impl,
+ org.eclipse.gmf.runtime.notation,
+ org.eclipse.uml2.uml
+

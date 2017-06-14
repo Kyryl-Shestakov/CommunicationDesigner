@@ -1,0 +1,84 @@
+transformation communication2class (source : uml, target : uml) {
+	top relation package2package {
+		theName : String;
+		
+		checkonly domain source s : uml::Package {
+			name = theName,
+			packagedElement = collaboration : uml::Collaboration {
+			}
+		};
+
+		enforce domain target t : uml::Package {
+			name = 'ClassModel_from_' + theName
+		};
+		
+		where {
+			lifeline2class(collaboration, s, t);
+		}
+	}
+	
+	relation lifeline2class {
+		modelName : String;
+		
+		checkonly domain source collaboration : uml::Collaboration {
+		};
+		
+		checkonly domain source sourcePackage : uml::Package {
+			packagedElement = lifeline : uml::Classifier {
+				name = modelName
+			}
+		};
+		
+		enforce domain target targetPackage : uml::Package {
+			packagedElement = class : uml::Class {
+				name = modelName
+			}
+		};
+		
+		when {
+			lifeline.oclIsKindOf(uml::Actor) or lifeline.oclIsKindOf(uml::Class);
+		}
+		
+		where {
+			message2operation(lifeline, collaboration, class);
+		}
+	}
+	
+	relation message2operation {
+		operationName : String;
+		
+		checkonly domain source lifeline : uml::Classifier {
+		};
+		
+		checkonly domain source collaboration : uml::Collaboration {
+			ownedBehavior = interaction : uml::Interaction {
+				ownedConnector = link : uml::Connector {
+					end = endPoint : uml::ConnectorEnd {
+						role = attribute
+					}
+				},
+				message = theMessage : uml::Message {
+					name = operationName,
+					connector = link
+				}
+			},
+			ownedAttribute = attribute : uml::Property {
+				type = lifeline
+			}
+		};
+		
+		enforce domain target class : uml::Class {
+			ownedOperation = operation : uml::Operation {
+				name = operationName
+			}
+		};
+		
+		when {
+			link.allOwnedElements()->at(2) = endPoint;
+			not class.allOwnedElements() -> 
+			select(x | x.oclIsKindOf(uml::Operation)) -> 
+			collect(y | y.oclAsType(uml::Operation)) -> 
+			exists(o | o.name = operationName);
+		}
+	}
+}

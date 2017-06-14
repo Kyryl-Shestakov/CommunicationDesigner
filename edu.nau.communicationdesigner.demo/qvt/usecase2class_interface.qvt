@@ -1,0 +1,71 @@
+transformation usecase2class (source : uml, target : uml) {
+	top relation model2model {
+		theName : String;
+		
+		checkonly domain source s: uml::Package {
+			name = theName
+		};
+
+		enforce domain target t: uml::Package {
+			name = 'ClassModel_from_' + theName
+		};
+		
+		where {
+			actor2class(s, t);
+		}
+	}
+
+	relation actor2class {
+		modelName : String;
+		
+		checkonly domain source sourcePackage: uml::Package {
+			packagedElement = actor: uml::Actor {
+				name = modelName
+			}
+		};
+		
+		enforce domain target targetPackage: uml::Package {
+			packagedElement = class: uml::Class {
+				name = modelName + 'Impl'
+			},
+			packagedElement = interface: uml::Interface {
+				name = modelName
+			},
+			packagedElement = realization: uml::Realization {
+				client = client -> append(class),
+				supplier = supplier -> append(interface)
+			}
+		};
+		
+		where {
+			usecase2operation(actor, sourcePackage, interface);
+		}
+	}
+	
+	relation usecase2operation {
+		usecaseName : String;
+		
+		checkonly domain source actor : uml::Actor {
+		};
+		
+		checkonly domain source s : uml::Package {
+			packagedElement = usecase : uml::UseCase {
+				name = usecaseName
+			},
+			packagedElement = association : uml::Association {
+				ownedEnd = usecaseEnd : uml::Property {
+					name = usecaseName.firstToLower()
+				},
+				ownedEnd = actorEnd : uml::Property {
+					name = actor.name.firstToLower()
+				}
+			}
+		};
+		
+		enforce domain target t : uml::Interface {
+			ownedOperation = operation : uml::Operation {
+				name = usecaseName
+			}
+		};
+	}
+}

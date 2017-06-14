@@ -1,2 +1,4 @@
 # CommunicationDesigner
 An Eclipse plugin that is based on IBM Rational Software Architect (7.5.5.2) and uses medini QVT engine (1.4.0) to transform a source model into a target model with a generated class diagram
+## Example usage
+To demonstrate plugin's work there is a edu.nau.communicationdesigner.demo modeling project. It has to contain three mandatory folders: qvt for QVT-R scripts, temp for temporary model placeholders and traces for traces files. Models are stored in the root of a project. Output models are generated alongside input ones. To transform a model select a project folder in a Project Explorer, click on the "Transform" button or choose "Transform" option under Communication Designer menu item to open a "Transformation Definition" dialog. Then pick a QVT-R script in qvt folder and an input model to be transformed in a root of a selected project.

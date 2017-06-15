@@ -70,3 +70,7 @@ local.properties
 .cache-main
 .scala_dependencies
 .worksheet
+
+temp/
+traces/
+edu.nau.communicationdesigner.demo/

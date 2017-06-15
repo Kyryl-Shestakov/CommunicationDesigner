@@ -99,9 +99,9 @@ public class MediniQvtRsaDomModelTransformation extends
 	protected void createDiagramFromModel(final String targetModelLocation) throws IOException {
 		String label = "Generate Class Diagram";
 		final org.eclipse.uml2.uml.Element modelResource = UMLModeler.openModelResource(targetModelLocation);
-		//TransactionalEditingDomain editDomain = UMLModeler.getEditingDomain();
-        TransactionalEditingDomain editDomain = TransactionUtil.getEditingDomain(modelResource);
-		
+		TransactionalEditingDomain editDomain = UMLModeler.getEditingDomain();
+		//TransactionalEditingDomain editDomain = TransactionUtil.getEditingDomain(modelResource);
+
 		Command layoutCommand = new RecordingCommand(editDomain, label) {
 			protected void doExecute() {
 				try {
@@ -129,7 +129,7 @@ public class MediniQvtRsaDomModelTransformation extends
 				}
 			}
 		};
-        editDomain.getCommandStack().execute(layoutCommand);
+		editDomain.getCommandStack().execute(layoutCommand);
 	}
 
 	@Override

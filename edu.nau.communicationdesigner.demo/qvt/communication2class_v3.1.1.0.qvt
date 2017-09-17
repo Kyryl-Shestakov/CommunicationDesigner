@@ -1,0 +1,902 @@
+transformation communication2class (source: uml, target: uml) {
+	key uml::Package {name};
+	key uml::Class {name};
+		
+	top relation modelPackageToModelPackage {
+		modelPackageName: String;
+		
+		checkonly domain source s: uml::Package {
+			name = modelPackageName,
+			packagedElement = collaboration: uml::Collaboration {
+			}
+		};
+	
+		enforce domain target t: uml::Package {
+			name = 'ClassModel_from_' + modelPackageName
+		};
+		
+		where {
+			lifelineRepresentationTypeToClass(collaboration, s, t);
+		}
+	}
+	
+	relation lifelineRepresentationTypeToClass {
+		modelName: String;
+		
+		checkonly domain source collaboration: uml::Collaboration {
+		};
+	
+		checkonly domain source sourcePackage: uml::Package {
+			packagedElement = lifelineType: uml::Classifier {
+				name = modelName
+			}
+		};
+	
+		enforce domain target targetPackage: uml::Package {
+			packagedElement = class: uml::Class {
+				name = modelName
+			}
+		};
+		
+		when {
+			lifelineType.oclIsKindOf(uml::Actor) 
+			or 
+			lifelineType.oclIsKindOf(uml::Class);
+		}
+		
+		where {
+			messageToOperation(lifelineType, collaboration, class);
+		}
+	}
+	
+	relation messageToOperation {
+		operationName: String;
+		
+		checkonly domain source lifelineType: uml::Classifier {
+		};
+		
+		checkonly domain source collaboration: uml::Collaboration {
+			ownedBehavior = interaction: uml::Interaction {
+				ownedConnector = link: uml::Connector {
+					end = endpoint: uml::ConnectorEnd {
+						role = attribute
+					}
+				},
+				message = theMessage: uml::Message {
+					name = operationName,
+					connector = link
+				}
+			},
+			ownedAttribute = attribute: uml::Property {
+				type = lifelineType
+			}
+		};
+		
+		enforce domain target class: uml::Class {
+			ownedOperation = operation: uml::Operation {
+				name = operationName
+			}
+		};
+		
+		when {
+			--message belongs to the class at the second endpoint
+			link.end -> at(2) = endpoint;
+			--avoid creating operations with the same name
+			not class.ownedOperation ->
+			exists(o | o.name = operationName);
+		}
+	}
+	
+	top relation connectorToAssociation {
+		modelPackageName: String;
+		firstClass: uml::Class;
+		secondClass: uml::Class;
+		associationRelationship: uml::Association;
+		
+		checkonly domain source sourcePackage: uml::Package {
+			name = modelPackageName,
+			packagedElement = collaboration: uml::Collaboration {
+				ownedBehavior = interaction: uml::Interaction {
+					ownedConnector = connector: uml::Connector {
+					}
+				}
+			}
+		};
+		
+		enforce domain target targetPackage: uml::Package {
+			name = 'ClassModel_from_' + modelPackageName,
+			packagedElement  = targetFirstClass: uml::Class {
+				name = GetFirstConnectorEndName(connector),
+				ownedAttribute = firstAssociationEnd: uml::Property {
+					name = secondClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = secondClass,
+					association = associationRelationship
+				}
+			},
+			packagedElement = targetSecondClass: uml::Class {
+				name = GetSecondConnectorEndName(connector),
+				ownedAttribute = secondAssociationEnd: uml::Property {
+					name = firstClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = firstClass,
+					association = associationRelationship
+				}
+			},
+			packagedElement = targetAssociationRelationship: uml::Association {
+			}
+		};
+		
+		when {
+			--types of lifeline representations must not have attributes
+			--of their respective types to avoid creating 
+			--duplicate associations
+			not ConnectorEndTypesHaveAssociation(connector);
+		}
+		
+		where {
+			firstClass = targetFirstClass;
+			secondClass = targetSecondClass;
+			associationRelationship = targetAssociationRelationship;
+		}
+	}
+	
+	top relation attributeToAssociation {
+		modelPackageName: String;
+		complexClassName: String;
+		associatedClassName: String;
+		associatedClass: uml::Class;
+		complexClass: uml::Class;
+		associationRelationship: uml::Association;
+		
+		checkonly domain source sourcePackage: uml::Package {
+			name = modelPackageName,
+			packagedElement = sourceAssociatedClass: uml::Class {
+				name = associatedClassName
+			},
+			packagedElement = sourceComplexClass: uml::Class {
+				name = complexClassName,
+				ownedAttribute = classAttribute: uml::Property {
+					type = sourceAssociatedClass
+				}
+			},
+			packagedElement = collaboration: uml::Collaboration {
+				ownedAttribute = associatedProperty: uml::Property {
+					type = sourceAssociatedClass
+				},
+				ownedAttribute = complexProperty: uml::Property {
+					type = sourceComplexClass
+				}
+			}
+		};
+		
+		enforce domain target targetPackage: uml::Package {
+			name = 'ClassModel_from_' + modelPackageName,
+			packagedElement = targetAssociatedClass: uml::Class {
+				name = associatedClassName,
+				ownedAttribute = firstAssociationEnd: uml::Property {
+					name = complexClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = complexClass,
+					association = associationRelationship
+				}
+			},
+			packagedElement = targetComplexClass: uml::Class {
+				name = complexClassName,
+				ownedAttribute = secondAssociationEnd: uml::Property {
+					name = associatedClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = associatedClass,
+					association = associationRelationship,
+					aggregation = DetermineAggregationKind(
+						collaboration, 
+						associatedProperty,
+						complexProperty
+					)
+				}
+			},
+			packagedElement = targetAssociationRelationship:uml::Association {
+			}
+		};
+		
+		when {
+			--class attribute must not be an association end 
+			classAttribute.association.oclIsUndefined();
+			--associated class must not have attributes
+			--of complex class type
+			not FirstClassHasAttributeOfSecondClassType(
+				sourceAssociatedClass, 
+				sourceComplexClass
+			);
+		}
+		
+		where {
+			associatedClass = targetAssociatedClass;
+			complexClass = targetComplexClass;
+			associationRelationship = targetAssociationRelationship;
+		}
+	}
+	
+	top relation twoAttributesToAssociation {
+		modelPackageName: String;
+		firstClassName: String;
+		secondClassName: String;
+		sourceDomainFirstClass: uml::Class;
+		sourceDomainSecondClass: uml::Class;
+		targetDomainFirstClass: uml::Class;
+		targetDomainSecondClass: uml::Class;
+		associationRelationship: uml::Association;
+		
+		checkonly domain source sourcePackage: uml::Package {
+			name = modelPackageName,
+			packagedElement = sourceFirstClass: uml::Class {
+				name = firstClassName,
+				ownedAttribute = firstClassAttribute: uml::Property {
+					type = sourceDomainSecondClass
+				}
+			},
+			packagedElement = sourceSecondClass: uml::Class {
+				name = secondClassName,
+				ownedAttribute = secondClassAttribute: uml::Property {
+					type = sourceDomainFirstClass
+				}
+			},
+			packagedElement = collaboration: uml::Collaboration {
+				ownedAttribute = firstProperty: uml::Property {
+					type = sourceFirstClass
+				},
+				ownedAttribute = secondProperty: uml::Property {
+					type = sourceSecondClass
+				}
+			}
+		};
+		
+		enforce domain target targetPackage: uml::Package {
+			name = 'ClassModel_from_' + modelPackageName,
+			packagedElement = targetFirstClass: uml::Class {
+				name = firstClassName,
+				ownedAttribute = firstAssociationEnd: uml::Property {
+					name = targetDomainSecondClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = targetDomainSecondClass,
+					association = associationRelationship,
+					aggregation = DetermineAggregationKind(
+						collaboration, 
+						secondProperty,
+						firstProperty
+					)
+				}
+			},
+			packagedElement = targetSecondClass: uml::Class {
+				name = secondClassName,
+				ownedAttribute = secondAssociationEnd: uml::Property {
+					name = targetDomainFirstClass.name.firstToLower(),
+					visibility = uml::VisibilityKind::private,
+					type = targetDomainFirstClass,
+					association = associationRelationship,
+					aggregation = DetermineAggregationKind(
+						collaboration, 
+						firstProperty,
+						secondProperty
+					)
+				}
+			},
+			packagedElement = targetAssociationRelationship:uml::Association {
+			}
+		};
+		
+		when {
+			sourceDomainFirstClass = sourceFirstClass;
+			sourceDomainSecondClass = sourceSecondClass;
+			--class attribute must not be an association end
+			firstClassAttribute.association.oclIsUndefined();
+			--class attribute must not be an association end
+			secondClassAttribute.association.oclIsUndefined();
+			--classes in the pattern must not be interchangeable to avoid
+			--duplicate associations
+			sourcePackage.packagedElement -> 
+			indexOf(sourceFirstClass)
+			< 
+			sourcePackage.packagedElement -> 
+			indexOf(sourceSecondClass);
+		}
+		
+		where {
+			targetDomainFirstClass = targetFirstClass;
+			targetDomainSecondClass = targetSecondClass;
+			associationRelationship = targetAssociationRelationship;
+		}
+	}
+	
+--Queries-----------------------------------------------------------------------
+	
+	--Shorthand for ConnectorEndName
+	query GetFirstConnectorEndName(connector: uml::Connector): String {
+		GetConnectorEndName(connector, 1)
+	}
+	
+	--Shorthand for ConnectorEndName
+	query GetSecondConnectorEndName(connector: uml::Connector): String {
+		GetConnectorEndName(connector, 2)
+	}
+	
+	--Determines a name of a connector end by figuring out 
+	--what classifier it has
+	query GetConnectorEndName(
+		connector: uml::Connector, 
+		connectorEndNumber: Integer
+	): String {
+		GetConnectorEndType(connector, connectorEndNumber).name
+	}
+	
+	--Shorthand for ConnectorEndType
+	query GetFirstConnectorEndType(
+		connector: uml::Connector
+	): uml::Classifier {
+		GetConnectorEndType(connector, 1)
+	}
+	
+	--Shorthand for ConnectorEndType
+	query GetSecondConnectorEndType(
+		connector: uml::Connector
+	): uml::Classifier {
+		GetConnectorEndType(connector, 2)
+	}
+	
+	--Retrieves the type of a connector end by going through its property
+	query GetConnectorEndType(
+		connector: uml::Connector, 
+		connectorEndNumber: Integer
+	): uml::Classifier {
+		GetConnectorEnd(
+			connector, 
+			connectorEndNumber
+		).role.type.oclAsType(uml::Classifier)
+	}
+	
+	--Shorthand for ConnectorEndProperty
+	query GetFirstConnectorEndProperty(
+		connector: uml::Connector
+	): uml::Property {
+		GetConnectorEndProperty(connector, 1)
+	}
+	
+	--Shorthand for ConnectorEndProperty
+	query GetSecondConnectorEndProperty(
+		connector: uml::Connector
+	): uml::Property {
+		GetConnectorEndProperty(connector, 2)
+	}
+	
+	--Retrieves the property of a connector end
+	query GetConnectorEndProperty(
+		connector: uml::Connector, 
+		connectorEndNumber: Integer
+	): uml::Property {
+		GetConnectorEnd(
+			connector, 
+			connectorEndNumber
+		).role.oclAsType(uml::Property)
+	}
+	
+	--Determines if first class has attributes of second class type
+	--that are not association ends
+	query FirstClassHasAttributeOfSecondClassType(
+		firstClass: uml::Class, 
+		secondClass: uml::Class
+	): Boolean {
+		firstClass.attribute -> 
+		exists(x | x.type = secondClass and x.association.oclIsUndefined())
+	}
+	
+	--Determines if two classes have association relationship between them
+	query ClassesHaveAssociation(
+		firstClass: uml::Class, 
+		secondClass: uml::Class
+	): Boolean {
+		firstClass.attribute -> 
+		exists(x | 
+			x.type = secondClass 
+			and 
+			(not x.association.oclIsUndefined())
+			and 
+			secondClass.attribute -> 
+			exists(y | 
+				(not y.association.oclIsUndefined())
+				and 
+				y.association = x.association
+			)
+		)
+	}
+	
+	--Determines if classes connected by the same connector
+	--have association relationship
+	query ConnectorEndTypesHaveAssociation(
+		connector: uml::Connector
+	): Boolean {
+		if
+			GetFirstConnectorEndType(connector).oclIsKindOf(uml::Class) 
+			and 
+			GetSecondConnectorEndType(connector).oclIsKindOf(uml::Class)
+		then
+			GetFirstConnectorEndType(connector).attribute -> 
+			exists(x | x.type = GetSecondConnectorEndType(connector))
+			or
+			GetSecondConnectorEndType(connector).attribute -> 
+			exists(x | x.type = GetFirstConnectorEndType(connector))
+		else
+			false
+		endif
+	}
+	
+	--Determines aggregation kind between complex and associated classes
+	--through looking at representing properties
+	query DetermineAggregationKind(
+		collaboration: uml::Collaboration, 
+		associatedProperty: uml::Property,
+		complexProperty: uml::Property
+	): uml::AggregationKind {
+		if 
+			AreConnected(
+				GetConnectors(collaboration), 
+				associatedProperty, 
+				complexProperty
+			) 
+			or
+			AreConnected(
+				GetConnectors(collaboration), 
+				complexProperty, 
+				associatedProperty
+			) 
+		then
+			if 
+				ComplexPropertyIsToTheLeft(
+					GetConnectors(collaboration),
+					associatedProperty, 
+					complexProperty
+				)
+			then
+				DetermineAggregationKindOnTheLeft(
+					collaboration, 
+					complexProperty,
+					associatedProperty
+				)
+			else
+				DetermineAggregationKindOnTheRight(
+					collaboration, 
+					associatedProperty,
+					complexProperty
+				)
+			endif
+		else
+			uml::AggregationKind::none
+		endif
+	}
+	
+	--Dtermines if complex property is somewhere to the left 
+	--of associated property
+	query ComplexPropertyIsToTheLeft(
+		connectors: Collection(uml::Connector), 
+		associatedProperty: uml::Property, 
+		complexProperty: uml::Property
+	): Boolean {
+		if
+			AreConnected(
+				connectors, 
+				complexProperty, 
+				associatedProperty
+			)
+		then
+			true
+		else
+			false --means that complex property is to the right
+		endif
+	}
+	
+	--Determines aggreagation kind between two classes defined by properties, 
+	--specifically on the left
+	query DetermineAggregationKindOnTheLeft(
+		collaboration: uml::Collaboration, 
+		firstProperty: uml::Property,
+		secondProperty: uml::Property
+	): uml::AggregationKind {
+		if
+			DetermineFinishingBorderProperties(
+				collaboration, 
+				firstProperty
+			) ->
+			forAll(y | 
+				SecondPropertyOccursOnAllPaths(
+					GetConnectors(collaboration),
+					y, 
+					firstProperty, 
+					secondProperty
+				)
+			)
+		then
+			uml::AggregationKind::composite
+		else
+			uml::AggregationKind::shared
+		endif
+	}
+	
+	--Determines aggreagation kind between two classes defined by properties, 
+	--specifically on the right
+	query DetermineAggregationKindOnTheRight(
+		collaboration: uml::Collaboration, 
+		firstProperty: uml::Property,
+		secondProperty: uml::Property
+	): uml::AggregationKind {
+		if
+			DetermineStartingBorderProperties(
+				collaboration, 
+				secondProperty
+			) ->
+			forAll(x | 
+				FirstPropertyOccursOnAllPaths(
+					GetConnectors(collaboration),
+					x, 
+					firstProperty, 
+					secondProperty
+				)
+			)
+		then
+			uml::AggregationKind::composite
+		else
+			uml::AggregationKind::shared
+		endif
+	}
+	
+	--Retrieves starting border properties 
+	--that are connected to a second property
+	query DetermineStartingBorderProperties(
+		collaboration: uml::Collaboration, 
+		secondProperty: uml::Property
+	): Collection(uml::Property) {
+	--TODO: Figure out why GetFirstConnectorEndPropertySet can't be used
+		GetFirstConnectorEnds(GetConnectors(collaboration)) ->
+		iterate(x: uml::ConnectorEnd; y: Set(uml::Property) = Set{} |
+			y -> including(x.role)
+		) -> 
+		select(z | 
+			GetSecondConnectorEndPropertySet(collaboration) -> 
+			excludes(z)
+		) ->
+		select(w | 
+			AreConnected(
+				GetConnectors(collaboration), 
+				w, 
+				secondProperty
+			)
+		)
+	}
+	
+	--Retrieves finishing border properties 
+	--that are connected to a first property
+	query DetermineFinishingBorderProperties(
+		collaboration: uml::Collaboration, 
+		firstProperty: uml::Property
+	): Collection(uml::Property) {
+	--TODO: Figure out why GetSecondConnectorEndPropertySet can't be used
+		GetSecondConnectorEnds(GetConnectors(collaboration)) ->
+		iterate(x: uml::ConnectorEnd; y: Set(uml::Property) = Set{} |
+			y -> including(x.role)
+		) -> 
+		select(z | 
+			GetFirstConnectorEndPropertySet(collaboration) -> 
+			excludes(z)
+		) ->
+		select(w | 
+			AreConnected(
+				GetConnectors(collaboration), 
+				firstProperty, 
+				w
+			)
+		)
+	}
+	
+	--Returns a set of properties taken from every first connector end
+	query GetFirstConnectorEndPropertySet(
+		collaboration: uml::Collaboration
+	): Collection(uml::Property) {
+		GetFirstConnectorEnds(GetConnectors(collaboration)) ->
+		iterate(x: uml::ConnectorEnd; y: Set(uml::Property) = Set{} |
+			y -> including(x.role)
+		)
+	}
+	
+	--Returns a set of properties taken from every second connector end
+	query GetSecondConnectorEndPropertySet(
+		collaboration: uml::Collaboration
+	): Collection(uml::Property) {
+		GetSecondConnectorEnds(GetConnectors(collaboration)) ->
+		iterate(x: uml::ConnectorEnd; y: Set(uml::Property) = Set{} |
+			y -> including(x.role)
+		)
+	}
+	
+	--Gets all connectors from the collaboration 
+	query GetConnectors(collaboration: uml::Collaboration): Collection(uml::Connector) {
+		collaboration.ownedBehavior.ownedConnector --TODO: check
+	}
+	
+	--Takes first connector end from every connector
+	query GetFirstConnectorEnds(
+		connectors: Collection(uml::Connector)
+	): Collection(uml::ConnectorEnd) {
+		connectors ->
+		iterate(
+			x: uml::Connector; 
+			y: Sequence(uml::ConnectorEnd) = Sequence{} 
+			|
+			y -> append(GetFirstConnectorEnd(x))
+		)
+	}
+	
+	--Takes second connector end from every connector
+	query GetSecondConnectorEnds(
+		connectors: Collection(uml::Connector)
+	): Collection(uml::ConnectorEnd) {
+		connectors ->
+		iterate(
+			x: uml::Connector; 
+			y: Sequence(uml::ConnectorEnd) = Sequence{} 
+			|
+			y -> append(GetSecondConnectorEnd(x))
+		)
+	}
+	
+	--Shorthand for GetConnectorEnd
+	query GetFirstConnectorEnd(connector: uml::Connector): uml::ConnectorEnd {
+		GetConnectorEnd(connector, 1)
+	}
+	
+	--Shorthand for GetConnectorEnd
+	query GetSecondConnectorEnd(connector: uml::Connector): uml::ConnectorEnd {
+		GetConnectorEnd(connector, 2)
+	}
+	
+	--Gets specific connector end from a connector
+	query GetConnectorEnd(
+		connector: uml::Connector, 
+		connectorEndNumber: Integer
+	): uml::ConnectorEnd {
+		connector.end ->
+		at(connectorEndNumber).oclAsType(uml::ConnectorEnd)
+	}
+	
+	--Determines if first property occurs on all paths 
+	--from starting border property to second property
+	query FirstPropertyOccursOnAllPaths(
+		connectors: Collection(uml::Connector), 
+		borderProperty: uml::Property, 
+		firstProperty: uml::Property, 
+		secondProperty: uml::Property
+	): Boolean {
+		GetAllPathsBetweenProperties(
+			connectors, 
+			borderProperty, 
+			secondProperty
+		) ->
+		forAll(x | x -> exists(y | y = firstProperty))
+	}
+	
+	--Determines if second property occurs on all paths 
+	--from first property to finishing border property
+	query SecondPropertyOccursOnAllPaths(
+		connectors: Collection(uml::Connector), 
+		borderProperty: uml::Property, 
+		firstProperty: uml::Property, 
+		secondProperty: uml::Property
+	): Boolean {
+		GetAllPathsBetweenProperties(
+			connectors, 
+			firstProperty, 
+			borderProperty
+		) ->
+		forAll(x | x -> exists(y | y = secondProperty))
+	}
+	
+	--Gets all paths between two properties
+	query GetAllPathsBetweenProperties(
+		connectors: Collection(uml::Connector), 
+		initialProperty: uml::Property, 
+		finalProperty: uml::Property
+	): Sequence(Sequence(uml::Property)) {
+		if not AreConnected(connectors, initialProperty, finalProperty) then
+			Sequence{} -> oclAsType(Sequence(Sequence(uml::Property)))
+		else
+			if 
+				AreConnectedDirectly(
+					connectors, 
+					initialProperty, 
+					finalProperty
+				)
+			then 
+				GetConnectedAdjacentProperties(
+					connectors, 
+					initialProperty, 
+					finalProperty
+				) ->
+				iterate(
+					x: uml::Property; 
+					y: Sequence(Sequence(uml::Property)) = Sequence{} 
+					| 
+					ContinueGettingPathsBetweenProperties(
+						Sequence{} -> 
+						oclAsType(Sequence(Sequence(uml::Property))), 
+						Sequence{initialProperty}, 
+						connectors,
+						x,
+						finalProperty
+					)
+				) -> append(Sequence{initialProperty, finalProperty})
+			else
+				GetConnectedAdjacentProperties(
+					connectors, 
+					initialProperty, 
+					finalProperty
+				) ->
+				iterate(
+					x: uml::Property; 
+					y: Sequence(Sequence(uml::Property)) = Sequence{} 
+					| 
+					ContinueGettingPathsBetweenProperties(
+						Sequence{} ->  
+						oclAsType(Sequence(Sequence(uml::Property))), 
+						Sequence{initialProperty}, 
+						connectors,
+						x,
+						finalProperty
+					)
+				)
+			endif
+		endif
+	}
+	
+	--Recursively makes paths from properties between given properties
+	query ContinueGettingPathsBetweenProperties(
+		paths: Sequence(Sequence(uml::Property)), 
+		currentPath: Sequence(uml::Property), 
+		connectors: Collection(uml::Connector), 
+		currentProperty: uml::Property, 
+		finalProperty: uml::Property
+	): Sequence(Sequence(uml::Property)) {
+		if 
+			GetConnectedAdjacentProperties(
+				connectors, 
+				currentProperty, 
+				finalProperty
+			) -> isEmpty() 
+		then
+			paths -> append(
+				currentPath -> append(currentProperty) -> append(finalProperty)
+			)
+		else 
+			GetConnectedAdjacentProperties(
+				connectors, 
+				currentProperty, 
+				finalProperty
+			) ->
+			iterate(
+				x: uml::Property; 
+				y: Sequence(Sequence(uml::Property)) = Sequence{} 
+				| 
+				if 
+					x = GetConnectedAdjacentProperties(
+						connectors, 
+						currentProperty, 
+						finalProperty
+					) -> first() 
+				then
+					ContinueGettingPathsBetweenProperties(
+						paths, 
+						currentPath -> append(currentProperty), 
+						connectors, 
+						x, 
+						finalProperty
+					)
+				else
+					ContinueGettingPathsBetweenProperties(
+						paths, 
+						PropertySequenceCopy(currentPath) -> 
+						append(currentProperty), 
+						connectors, 
+						x, 
+						finalProperty
+					)
+				endif
+			)
+		endif
+	}
+	
+	--Returns a copy of a sequence
+	query PropertySequenceCopy(
+		initialSequence: Sequence(uml::Property)
+	): Sequence(uml::Property) {
+		initialSequence -> 
+		iterate(x: uml::Property; y: Sequence(uml::Property) = Sequence{} |
+			y -> append(x)
+		)
+	}
+	
+	--Gets those adjacent properties that are connected to a final property
+	query GetConnectedAdjacentProperties(
+		connectors: Collection(uml::Connector), 
+		currentProperty: uml::Property, 
+		finalProperty: uml::Property
+	): Sequence(uml::Property) {
+		GetAdjacentProperties(connectors, currentProperty) ->
+		select(x | AreConnected(connectors, x, finalProperty))
+	}
+	
+	--Determines if two properties are connected 
+	--by any number of message paths (connectors)
+	query AreConnected(
+		connectors: Collection(uml::Connector), 
+		currentProperty: uml::Property, 
+		finalProperty: uml::Property
+	): Boolean {
+		if 
+			AreConnectedDirectly(
+				connectors,
+				currentProperty, 
+				finalProperty
+			)
+		then 
+			true
+		else
+			GetAdjacentProperties(connectors, currentProperty) -> 
+			exists(y | AreConnected(connectors, y, finalProperty))
+		endif
+	}
+	
+	--Gets properties that this property is connected to directly
+	query GetAdjacentProperties(
+		connectors: Collection(uml::Connector), 
+		property: uml::Property
+	): Sequence(uml::Property) {
+		connectors ->
+		iterate(x: uml::Connector; y: Sequence(uml::Property) = Sequence{} | 
+			if BelongsToConnectorAtFirstConnectorEnd(x, property) then
+				y -> append(GetSecondConnectorEndProperty(x))
+			else 
+				y
+			endif
+		)
+	}
+	
+	--Determines if this property belongs to a specified connector
+	query BelongsToConnectorAtFirstConnectorEnd(
+		connector: uml::Connector, 
+		property: uml::Property
+	): Boolean {
+		GetFirstConnectorEnd(connector).role = property
+	}
+	
+	--Determines if two properties are connected directly
+	query AreConnectedDirectly(
+		connectors: Collection(uml::Connector), 
+		property1: uml::Property, 
+		property2: uml::Property
+	): Boolean {
+		AreConnectedDirectlyInOrder(connectors, property1, property2) 
+		or 
+		AreConnectedDirectlyInOrder(connectors, property2, property1)
+	}
+	
+	--Determines if two properties are connected to each other 
+	--directly corresponding to the order of connector ends
+	query AreConnectedDirectlyInOrder(
+		connectors: Collection(uml::Connector), 
+		firstProperty: uml::Property, 
+		secondProperty: uml::Property
+	): Boolean {
+		connectors ->
+		exists(x | 
+			GetFirstConnectorEnd(x).role = firstProperty 
+			and 
+			GetSecondConnectorEnd(x).role = secondProperty
+		)
+	}
+}

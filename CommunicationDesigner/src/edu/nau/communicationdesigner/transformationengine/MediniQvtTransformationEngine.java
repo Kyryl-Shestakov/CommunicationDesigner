@@ -28,7 +28,7 @@ import de.ikv.emf.qvt.EMFQvtProcessorImpl;
 import de.ikv.medini.qvt.QVTProcessorConsts;
 
 /**
- * Performs transformations using mediniQVT
+ * Performs transformations using medini QVT
  * @author Kyryl Shestakov
  *
  */
@@ -46,18 +46,18 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 	/**
 	 * Initializes the QVT processor
 	 * @param outputStream an {@link OutputStream} for logging
-	 * @param qvtScriptLocation location of a qvt script
+	 * @param qvtScriptLocation location of a QVT-R script
 	 * @param tracesFolderLocation location of traces folder
-	 * @param transformationName name of a transformation to use from a qvt script
+	 * @param transformationName name of a transformation to use from a QVT-R script
 	 * @param transformationDirection the direction of a transformation (usually, target)
 	 */
 	public MediniQvtTransformationEngine(
-			OutputStream outputStream,
-			String qvtScriptLocation,
-			String tracesFolderLocation,
-			String transformationName,
-			String transformationDirection
-			) {
+		OutputStream outputStream,
+		String qvtScriptLocation,
+		String tracesFolderLocation,
+		String transformationName,
+		String transformationDirection
+	) {
 		this.logger = new OutputStreamLog(outputStream);
 		this.processorImpl = new EMFQvtProcessorImpl(this.logger);
 		this.processorImpl.setProperty(QVTProcessorConsts.PROP_DEBUG, "true");
@@ -132,7 +132,7 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 	}
 
 	/**
-	 * Transform a QVT script in a specific direction.
+	 * Transforms a QVT-R script in a specific direction.
 	 * 
 	 * @param qvtRuleSet
 	 *            the QVT transformation
@@ -142,7 +142,11 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 	 *            name of the target - must conform to your QVT transformation definition
 	 * @throws Throwable
 	 */
-	public void transform(Reader qvtRuleSet, String transformation, String direction) throws Throwable {
+	public void transform(
+		Reader qvtRuleSet, 
+		String transformation, 
+		String direction
+	) throws Throwable {
 		this.processorImpl.evaluateQVT(qvtRuleSet, transformation, true, direction, new Object[0], null, this.logger);
 		this.clean();
 	}
@@ -166,10 +170,9 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 	}
 
 	public void launch(
-			String temporarySourceModelPlaceholderLocation,
-			String temporaryTargetModelPlaceholderLocation
-			) {
-
+		String temporarySourceModelPlaceholderLocation,
+		String temporaryTargetModelPlaceholderLocation
+	) {
 		// initialize resource set of models
 		this.resourceSet = new ResourceSetImpl();
 		this.resourceSet.getResourceFactoryRegistry().getExtensionToFactoryMap().put(
@@ -183,8 +186,8 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 		this.init(metaPackages);
 
 		// load the example model files
-		Resource resource1 = this.getResource(temporarySourceModelPlaceholderLocation); // adjustable field
-		Resource resource2 = this.getResource(temporaryTargetModelPlaceholderLocation); // adjustable field
+		Resource resource1 = this.getResource(temporarySourceModelPlaceholderLocation);
+		Resource resource2 = this.getResource(temporaryTargetModelPlaceholderLocation);
 
 		// Collect the models, which should participate in the transformation.
 		// You can provide a list of models for each direction.
@@ -198,24 +201,24 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 		secondSetOfModels.add(resource2);
 
 		// tell the QVT engine a directory to work in - e.g. to store the trace (meta)models
-		URI directory = URI.createFileURI(this.tracesFolderLocation); // adjustable field
+		URI directory = URI.createFileURI(this.tracesFolderLocation);
 		this.preExecution(modelResources, directory);
 
 		// load the QVT relations
 		FileReader qvtRuleSet = null;
 		try {
-			qvtRuleSet = new FileReader(this.qvtScriptLocation); // adjustable field
+			qvtRuleSet = new FileReader(this.qvtScriptLocation);
 		} catch (FileNotFoundException fileNotFoundException) {
 			fileNotFoundException.printStackTrace();
 			return;
 		}
 		// tell the QVT engine, which transformation to execute - there might be more than one in
 		// the QVT file!
-		String transformation = this.transformationName; // adjustable field
+		String transformation = this.transformationName;
 		// give the direction of the transformation (according to the transformation definition)
-		String direction = this.transformationDirection; // adjustable field
+		String direction = this.transformationDirection;
 
-		// just do it ;-)
+		// just do it
 		try {
 			this.transform(qvtRuleSet, transformation, direction);
 		} catch (Throwable throwable) {
@@ -241,12 +244,13 @@ public class MediniQvtTransformationEngine implements TransformationEngine {
 	protected void collectMetaModels(Collection<EPackage> metaPackages) {
 		//metaPackages.add(ShapeLanguageMetamodelPackage.eINSTANCE);
 		metaPackages.add(UMLPackage.eINSTANCE);
-		
 	}
 	
 	@Override
-	public void transform(String temporarySourceModelPlaceholderLocation,
-			String temporaryTargetModelPlaceholderLocation) {
+	public void transform(
+		String temporarySourceModelPlaceholderLocation,
+		String temporaryTargetModelPlaceholderLocation
+	) {
 		this.deleteTraces(this.tracesFolderLocation);
 		this.launch(temporarySourceModelPlaceholderLocation, temporaryTargetModelPlaceholderLocation);
 	}

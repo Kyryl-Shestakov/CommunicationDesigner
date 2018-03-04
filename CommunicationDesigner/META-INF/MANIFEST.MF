@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-Name: CommunicationDesigner Plug-in
 Bundle-SymbolicName: CommunicationDesigner; singleton:=true
-Bundle-Version: 1.0.0
+Bundle-Version: 1.1.0
 Bundle-Activator: communicationdesigner.Activator
 Require-Bundle: org.eclipse.ui,
  org.eclipse.core.runtime,

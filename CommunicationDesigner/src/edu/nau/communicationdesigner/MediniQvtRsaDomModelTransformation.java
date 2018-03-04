@@ -16,9 +16,9 @@ import org.eclipse.emf.common.command.Command;
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.transaction.RecordingCommand;
 import org.eclipse.emf.transaction.TransactionalEditingDomain;
-import org.eclipse.emf.transaction.util.TransactionUtil;
 import org.eclipse.gmf.runtime.diagram.ui.services.layout.LayoutType;
 import org.eclipse.gmf.runtime.notation.Diagram;
+import org.eclipse.uml2.uml.Relationship;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -31,6 +31,8 @@ import edu.nau.communicationdesigner.fileprocessing.OutputXmiFileProcessing;
 import edu.nau.communicationdesigner.fileprocessing.ResultingXmiFileProcessing;
 import edu.nau.communicationdesigner.fileprocessing.XmiFileProcessing;
 import edu.nau.communicationdesigner.fileprocessing.XmlDocumentCreationResolution;
+import edu.nau.communicationdesigner.relationshipmanagement.RelationshipLink;
+import edu.nau.communicationdesigner.relationshipmanagement.RelationshipManagement;
 
 import com.ibm.xtools.modeler.ui.UMLModeler;
 import com.ibm.xtools.uml.ui.diagram.IUMLDiagramHelper;
@@ -113,16 +115,41 @@ public class MediniQvtRsaDomModelTransformation extends
 					diagram.setName("ClassDiagram");
 
 					EList<org.eclipse.uml2.uml.Element> ownedElements = modelResource.allOwnedElements();
+					org.eclipse.uml2.uml.Element ownedElement;
+					RelationshipManagement relationshipManager = new RelationshipManagement();
+					
+					//Note: perhaps you cannot create an edge between nodes that were not created yet
+					
 					for (int i=0; i<ownedElements.size(); ++i) {
-						org.eclipse.uml2.uml.Element ownedElement = ownedElements.get(i);
-						helper.createNode(diagram, ownedElement);
-						/*EList<org.eclipse.uml2.uml.Relationship> relationships = ownedElement.getRelationships();
-						for (int j=0; j<relationships.size(); ++j) {
-							helper.createEdges(diagram, relationships.get(j));
-						}*/
+						ownedElement = ownedElements.get(i);
+						
+						// for relationships this will be empty
+						EList<Relationship> relationships = ownedElement.getRelationships();
+						
+						// for relationships this will be null
+						org.eclipse.gmf.runtime.notation.Node node = helper.createNode(diagram, ownedElement);
+						
+						// consider top-level elements (like classes and interfaces)
+						// to exclude attributes and operations
+						if (ownedElement.getOwner() == modelResource) {
+							for (int j=0; j<relationships.size(); ++j) {
+								Relationship relationship = relationships.get(j);
+								relationshipManager.addRelationshipLink(relationship, node);
+							}
+						}
+					}
+					
+					for (int k=0; k<relationshipManager.relationshipLinkCount(); ++k) {
+						RelationshipLink relationshipLink = relationshipManager.getRelationshipLinks().get(k);
+						helper.createEdge(
+								relationshipLink.getSource(),
+								relationshipLink.getTarget(),
+								relationshipLink.getRelationship()
+						);
 					}
 
-					UMLModeler.getUMLDiagramHelper().layout(diagram, LayoutType.DEFAULT);
+					helper.layout(diagram, LayoutType.DEFAULT);
+					
 					UMLModeler.saveModelResource(modelResource);
 				} catch (IOException e) {
 					e.printStackTrace();
